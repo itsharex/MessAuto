@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/icon.png" width=240 />
+  <img src="images/icon_256.png" width=240 />
 </p>
 
 <p align="center">
@@ -40,6 +40,7 @@ MessAuto 的图标，点击图标列出菜单：
 - 登录时启动：不会有控制狂不打开吧
 - 配置：点击后将打开json格式的配置文件，可以在其中自定义关键词
 - 监听邮件：开启后将同时监听邮件
+- 悬浮窗：类似于 Safari 的悬浮窗，但功能上稍有落后
 
 > 关键词: 也叫触发词，当信息中包含如“验证码”等关键词时，程序才会执行一系列后续操作，否则会忽略此条信息
 
@@ -64,6 +65,8 @@ MessAuto 的图标，点击图标列出菜单：
 - [x] 增加日志功能
 - [ ] 制作 App 主页
 - [x] 增加检测邮件验证码功能
+- [x] 增加悬浮窗功能
+- [ ] 增强悬浮窗体验：TouchArea, Shortcut key ...
 
 ## 开发初衷
 
@@ -85,16 +88,30 @@ Safari 浏览器上，但并不是每个人都喜欢使用它。为了把这个�
 
 ## 自行编译
 
-- `git clone https://github.com/LeeeSe/MessAuto.git`
-- `cd MessAuto`
-- `cargo install cargo-bundle`
-- `cargo bundle --release`
+```bash
+# 下载源码
+git clone https://github.com/LeeeSe/MessAuto.git
+cd MessAuto
 
-## 感谢
+# 编译运行（非必需，仅用于开发测试）
+cargo run
 
-* 感谢 [@尚善若拙](https://sspai.com/post/73072) 提供获取短信思路
+# 安装 cargo-bundle
+cargo install cargo-bundle
+# 打包应用
+cargo bundle --release
+```
+
+生成的 MessAuto 应用位于 `target/release/bundle/osx/MessAuto.app`。
 
 ## 日志目录
 
 日志文件目录：`~/.config/messauto/messauto.log`
 仅保留最近一次启动软件的日志
+
+## 常见问题
+- 给了权限但还是弹出权限请求：暂时的解决方法是从设置面板的辅助功能和磁盘权限列表中将原来的 MessAuto 通过下面的"-"号移除，当再次弹出权限请求时正常同意即可工作
+
+## 感谢
+
+* 感谢 [@尚善若拙](https://sspai.com/post/73072) 提供获取短信思路

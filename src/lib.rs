@@ -1,3 +1,5 @@
+use std::io::Read;
+use std::thread::sleep;
 use std::{
     error::Error,
     fs,
@@ -6,8 +8,6 @@ use std::{
     thread,
     time::Duration,
 };
-use std::io::Read;
-use std::thread::sleep;
 
 use auto_launch::AutoLaunch;
 use clipboard::{ClipboardContext, ClipboardProvider};
@@ -32,6 +32,7 @@ use tray_icon::{
     TrayIconBuilder,
 };
 
+pub const ARGS_APP: &str = "app";
 rust_i18n::i18n!("locales");
 pub fn get_sys_locale() -> &'static str {
     let syslocal = sys_locale::get_locale().unwrap();
@@ -44,14 +45,33 @@ pub fn get_sys_locale() -> &'static str {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MAConfig {
+    #[serde(default)]
     pub auto_paste: bool,
+    #[serde(default)]
     pub auto_return: bool,
+    #[serde(default)]
     pub hide_icon_forever: bool,
+    #[serde(default)]
     pub launch_at_login: bool,
+    #[serde(default = "default_flags")]
     pub flags: Vec<String>,
+    #[serde(default)]
     pub listening_to_mail: bool,
+    #[serde(default)]
+    pub float_window: bool,
+}
+
+fn default_flags() -> Vec<String> {
+    vec![
+        "验证码".to_string(),
+        "动态密码".to_string(),
+        "verification".to_string(),
+        "code".to_string(),
+        "인증".to_string(),
+        "代码".to_string(),
+    ]
 }
 
 impl Default for MAConfig {
@@ -61,14 +81,9 @@ impl Default for MAConfig {
             auto_return: false,
             hide_icon_forever: false,
             launch_at_login: false,
-            flags: vec![
-                "验证码".to_string(),
-                "verification".to_string(),
-                "code".to_string(),
-                "인증".to_string(),
-                "代码".to_string(),
-            ],
+            flags: default_flags(),
             listening_to_mail: false,
+            float_window: false,
         }
     }
 }
@@ -109,15 +124,9 @@ pub fn read_config() -> MAConfig {
         std::fs::write(config_path(), config_str).unwrap();
     }
     let config_str = std::fs::read_to_string(config_path()).unwrap();
-    let config = serde_json::from_str(&config_str);
-    if config.is_err() {
-        let config = MAConfig::default();
-        let config_str = serde_json::to_string(&config).unwrap();
-        std::fs::write(config_path(), config_str).unwrap();
-        return config;
-    } else {
-        return config.unwrap();
-    }
+    let config: MAConfig = serde_json::from_str(&config_str).unwrap();
+    config.update().unwrap();
+    return config;
 }
 
 pub struct TrayMenuItems {
@@ -130,6 +139,7 @@ pub struct TrayMenuItems {
     pub add_flag: MenuItem,
     pub maconfig: MenuItem,
     pub listening_to_mail: CheckMenuItem,
+    pub float_window: CheckMenuItem,
 }
 
 impl TrayMenuItems {
@@ -143,17 +153,25 @@ impl TrayMenuItems {
             None,
         );
         let check_hide_icon_for_now = MenuItem::new(t!("hide-icon-for-now"), true, None);
+
         let check_hide_icon_forever = MenuItem::new(t!("hide-icon-forever"), true, None);
+
         let check_launch_at_login =
             CheckMenuItem::new(t!("launch-at-login"), true, config.launch_at_login, None);
+
         let add_flag = MenuItem::new(t!("add-flag"), true, None);
+
         let maconfig = MenuItem::new(t!("config"), true, None);
+
         let listening_to_mail = CheckMenuItem::new(
             t!("listening-to-mail"),
             true,
             config.listening_to_mail,
             None,
         );
+
+        let float_window = CheckMenuItem::new(t!("float-window"), true, config.float_window, None);
+
         TrayMenuItems {
             quit_i,
             check_auto_paste,
@@ -162,8 +180,9 @@ impl TrayMenuItems {
             check_hide_icon_forever,
             check_launch_at_login,
             add_flag,
-            maconfig,
             listening_to_mail,
+            float_window,
+            maconfig,
         }
     }
 }
@@ -185,13 +204,14 @@ impl TrayMenu {
                     &tray_menu_items.check_hide_icon_forever,
                 ],
             )
-                .expect("create submenu failed"),
+            .expect("create submenu failed"),
             &tray_menu_items.check_launch_at_login,
             &PredefinedMenuItem::separator(),
             // &tray_menu_items.add_flag,
-            &tray_menu_items.maconfig,
-            &PredefinedMenuItem::separator(),
             &tray_menu_items.listening_to_mail,
+            &tray_menu_items.float_window,
+            &PredefinedMenuItem::separator(),
+            &tray_menu_items.maconfig,
             &PredefinedMenuItem::separator(),
             &tray_menu_items.quit_i,
         ]);
@@ -203,14 +223,33 @@ pub struct TrayIcon {}
 
 impl TrayIcon {
     pub fn build(tray_menu: Menu) -> Option<tray_icon::TrayIcon> {
+        let bin_path = get_current_exe_path();
+        let mut icon_path = bin_path.join("Contents/Resources/images/icon.png");
+        if !icon_path.exists() {
+            icon_path = "images/icon.png".into();
+        }
+        let icon = load_icon(std::path::Path::new(&icon_path));
         Some(
             TrayIconBuilder::new()
                 .with_menu(Box::new(tray_menu))
-                .with_title("📨")
+                // .with_title("📨")
+                .with_icon(icon)
                 .build()
                 .unwrap(),
         )
     }
+}
+
+fn load_icon(path: &std::path::Path) -> tray_icon::Icon {
+    let (icon_rgba, icon_width, icon_height) = {
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba8();
+        let (width, height) = image.dimensions();
+        let rgba = image.into_raw();
+        (rgba, width, height)
+    };
+    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
 }
 
 pub fn auto_launch() -> AutoLaunch {
@@ -310,7 +349,7 @@ pub fn get_real_captcha(stdout: &String) -> String {
 }
 
 // paste code
-fn paste(enigo: &mut Enigo) {
+pub fn paste(enigo: &mut Enigo) {
     check_accessibility();
     // Meta + v 粘贴
     thread::sleep(Duration::from_millis(100));
@@ -323,7 +362,7 @@ fn paste(enigo: &mut Enigo) {
 }
 
 // enter the pasted code
-fn enter(enigo: &mut Enigo) {
+pub fn enter(enigo: &mut Enigo) {
     check_accessibility();
     thread::sleep(Duration::from_millis(100));
     enigo.key_click(Key::Return);
@@ -351,7 +390,9 @@ pub fn messages_thread() {
                     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
                     ctx.set_contents(real_captcha.to_owned()).unwrap();
                     let config = read_config();
-                    if config.auto_paste {
+                    if config.float_window {
+                        let _child = open_app(real_captcha, t!("imessage").to_string());
+                    } else if config.auto_paste && !config.float_window {
                         paste(&mut enigo);
                         info!("粘贴验证码");
                         if config.auto_return {
@@ -361,7 +402,7 @@ pub fn messages_thread() {
                     }
                 }
             }
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(Duration::from_secs(5));
         }
     });
 }
@@ -410,6 +451,8 @@ pub fn check_for_updates() -> Result<bool, Box<dyn Error>> {
     // 转换为数字
     let latest_version = latest_version.parse::<i32>()?;
     let current_version = current_version.parse::<i32>()?;
+    info!("最新版本号: {}", latest_version);
+    info!("当前版本号: {}", current_version);
     // 如果最新版本号大于当前版本号,则提示更新
     if latest_version > current_version {
         return Ok(true);
@@ -497,22 +540,24 @@ pub fn update_thread(tx: std::sync::mpsc::Sender<bool>) {
 
 // 将下载好的新版本替换老版本
 pub fn replace_old_version() -> Result<(), Box<dyn Error>> {
-    Command::new("unzip")
+    let unzip_output = Command::new("unzip")
         .arg("-o")
         .arg("/tmp/MessAuto.zip")
         .arg("-d")
         .arg("/tmp/")
         .output()?;
+    info!("解压: {:?}", unzip_output);
 
     Command::new("rm").arg("/tmp/MessAuto.zip").output()?;
 
-    Command::new("mv")
+    let mv_output = Command::new("cp")
+        .arg("-R")
         .arg("/tmp/MessAuto.app")
-        .arg(get_current_exe_path())
+        .arg(get_current_exe_path().parent().unwrap())
         .output()?;
+    info!("替换二进制文件: {:?}", mv_output);
     Ok(())
 }
-
 
 pub fn mail_thread() {
     std::thread::spawn(move || {
@@ -551,46 +596,48 @@ async fn async_watch<P: AsRef<Path>>(path: P) -> notify::Result<()> {
 
     while let Some(res) = rx.next().await {
         match res {
-            Ok(event) => {
-                match event.kind {
-                    notify::event::EventKind::Create(_) => {
-                        for path in event.paths {
-                            let path = path.to_string_lossy();
-                            if path.contains(".emlx") && path.contains("INBOX.mbox") {
-                                info!("收到新邮件: {:?}", path);
-                                let path = path.replace(".tmp", "");
-                                let content = read_emlx(&path);
-                                info!("len: {}", content.len());
-                                info!("邮件内容：{:?}", content);
-                                if content.len() < 500 {
-                                    let is_captcha = check_captcha_or_other(&content, &read_config().flags);
-                                    if is_captcha {
-                                        info!("检测到新的验证码类型邮件：{:?}", content);
-                                        let captchas = get_captchas(&content);
-                                        info!("所有可能的验证码为:{:?}", captchas);
-                                        let real_captcha = get_real_captcha(&content);
-                                        info!("提取到真正的验证码:{:?}", real_captcha);
-                                        let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-                                        ctx.set_contents(real_captcha.to_owned()).unwrap();
-                                        let config = read_config();
-                                        if config.auto_paste {
-                                            let mut enigo = Enigo::new();
-                                            paste(&mut enigo);
-                                            info!("粘贴验证码");
-                                            if config.auto_return {
-                                                enter(&mut enigo);
-                                                info!("执行回车");
-                                            }
+            Ok(event) => match event.kind {
+                notify::event::EventKind::Create(_) => {
+                    for path in event.paths {
+                        let path = path.to_string_lossy();
+                        if path.contains(".emlx") && path.contains("INBOX.mbox") {
+                            info!("收到新邮件: {:?}", path);
+                            let path = path.replace(".tmp", "");
+                            let content = read_emlx(&path);
+                            info!("len: {}", content.len());
+                            info!("邮件内容：{:?}", content);
+                            if content.len() < 500 {
+                                let is_captcha =
+                                    check_captcha_or_other(&content, &read_config().flags);
+                                if is_captcha {
+                                    info!("检测到新的验证码类型邮件：{:?}", content);
+                                    let captchas = get_captchas(&content);
+                                    info!("所有可能的验证码为:{:?}", captchas);
+                                    let real_captcha = get_real_captcha(&content);
+                                    info!("提取到真正的验证码:{:?}", real_captcha);
+                                    let mut ctx: ClipboardContext =
+                                        ClipboardProvider::new().unwrap();
+                                    ctx.set_contents(real_captcha.to_owned()).unwrap();
+                                    let config = read_config();
+                                    if config.float_window {
+                                        let child = open_app(real_captcha, t!("mail").to_string());
+                                    } else if config.auto_paste {
+                                        let mut enigo = Enigo::new();
+                                        paste(&mut enigo);
+                                        info!("粘贴验证码");
+                                        if config.auto_return {
+                                            enter(&mut enigo);
+                                            info!("执行回车");
                                         }
                                     }
                                 }
-                                sleep(std::time::Duration::from_secs(2));
                             }
+                            sleep(std::time::Duration::from_secs(5));
                         }
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             Err(e) => error!("watch error: {:?}", e),
         }
     }
@@ -609,4 +656,18 @@ fn read_emlx<'x>(path: &str) -> String {
     let message = MessageParser::default().parse(message).unwrap();
 
     message.body_text(0).unwrap().to_owned().to_string()
+}
+
+pub fn open_app(code: String, from_app: String) -> std::process::Child {
+    start_process(vec![ARGS_APP.to_string(), code, from_app])
+}
+
+fn start_process(command_args: Vec<String>) -> std::process::Child {
+    let current_exe = std::env::current_exe().unwrap();
+
+    let child = Command::new(current_exe)
+        .args(&command_args)
+        .spawn()
+        .unwrap();
+    child
 }
