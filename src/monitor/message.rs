@@ -9,8 +9,8 @@ use crate::clipboard;
 use crate::config::Config;
 use crate::ipc;
 use crate::parser;
+use crate::permissions;
 
-// 跟踪最后处理的消息ID
 static LAST_PROCESSED_ROWID: Mutex<i64> = Mutex::new(0);
 
 #[derive(Clone)]
@@ -202,6 +202,17 @@ impl FileProcessor for MessageProcessor {
             let stderr = String::from_utf8_lossy(&output.stderr);
             error!("Error executing SQLite query: {}", stderr);
             debug!("Command status: {:?}", output.status);
+
+            // Check if this is a permission error and show permission dialog if needed
+            if stderr.contains("attempt to write a readonly database")
+                || stderr.contains("permission denied")
+                || stderr.contains("unable to open database")
+            {
+                warn!("Permission error detected when accessing Messages database");
+                if !permissions::check_full_disk_access() {
+                    permissions::show_permission_dialog();
+                }
+            }
         }
 
         Ok(())

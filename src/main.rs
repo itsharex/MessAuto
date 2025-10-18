@@ -7,6 +7,7 @@ mod launch;
 mod monitor;
 mod notification;
 mod parser;
+mod permissions;
 mod tray;
 mod updater;
 
@@ -42,7 +43,13 @@ fn main() {
         }
     };
 
-    // Initialize launch manager and sync with config
+    if !permissions::check_full_disk_access() {
+        log::warn!("Full Disk Access permission not granted, showing permission dialog");
+        permissions::show_permission_dialog();
+    } else {
+        log::info!("Full Disk Access permission is granted");
+    }
+
     if let Ok(launch_manager) = launch::LaunchManager::new() {
         if let Err(e) = launch_manager.sync_with_config(&app_config.lock().unwrap()) {
             log::error!("Failed to sync launch at login status: {}", e);

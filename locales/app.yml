@@ -242,6 +242,9 @@ actor:
   failed_to_send_initial_start_email:
     en: Failed to send initial start email command:%{error}
     zh-CN: 发送初始启动邮件命令失败:%{error}
+  file_event_detected:
+    en: File monitoring system detected target file change:%{path}
+    zh-CN: 文件监控系统检测到目标文件变化:%{path}
 
 menu:
   auto_paste:
@@ -384,3 +387,17 @@ floating_window:
   from:
     en: From:%{source}
     zh-CN: 来自:%{source}
+
+dialog:
+  permission_request_title:
+    en: Permission Required
+    zh-CN: 需要权限
+  permission_request_body:
+    en: "MessAuto needs Full Disk Access permission to monitor Messages and extract verification codes. Please grant this permission in System Settings."
+    zh-CN: "MessAuto需要「完全磁盘访问权限」来监听消息并提取验证码，请在系统设置中授予权限。"
+  permission_request_button_open:
+    en: Open Settings
+    zh-CN: 打开设置
+  permission_request_button_later:
+    en: Later
+    zh-CN: 稍后

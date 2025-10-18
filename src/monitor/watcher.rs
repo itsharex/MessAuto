@@ -1,5 +1,6 @@
 use log::{debug, error, info};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use rust_i18n::t;
 use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::{Receiver, channel};
 use tokio::task::JoinHandle;
@@ -106,6 +107,7 @@ impl<P: FileProcessor> FileWatcher<P> {
                         let path_str = path.to_string_lossy();
                         debug!("Checking path: {}", path_str);
                         if path_str.contains(&pattern) {
+                            info!("{}", t!("monitor.file_event_detected", path = path_str));
                             debug!("Detected event in watched file: {}", path_str);
 
                             if let Err(e) = processor.process_file(&path, &event.kind) {
