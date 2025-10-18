@@ -6,7 +6,6 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-/// A custom log target that writes to both stdout and a file
 pub struct LogTarget {
     file: Mutex<std::fs::File>,
 }
@@ -21,30 +20,24 @@ impl LogTarget {
 
 impl Write for LogTarget {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // Write to stdout
         let stdout_result = io::stdout().write(buf);
 
-        // Write to file
         let file_result = {
             let mut file = self.file.lock().unwrap();
             file.write(buf)
         };
 
-        // Return the result of stdout write (or file write if stdout failed)
         stdout_result.or(file_result)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        // Flush stdout
         let stdout_result = io::stdout().flush();
 
-        // Flush file
         let file_result = {
             let mut file = self.file.lock().unwrap();
             file.flush()
         };
 
-        // Return the result of stdout flush (or file flush if stdout failed)
         stdout_result.or(file_result)
     }
 }
@@ -121,7 +114,6 @@ impl Config {
 
         let content = fs::read_to_string(&path)?;
 
-        // 尝试解析当前版本，失败则尝试旧版本
         match toml::from_str(&content) {
             Ok(mut config) => {
                 config = Self::migrate_config(config);
@@ -195,7 +187,6 @@ impl Config {
         })
     }
 
-    // 初始化日志系统
     pub fn init_logging() -> Result<(), Box<dyn std::error::Error>> {
         let log_dir = dirs::config_dir()
             .unwrap_or_default()
@@ -204,13 +195,11 @@ impl Config {
 
         fs::create_dir_all(&log_dir)?;
 
-        // 创建日志文件
         let log_file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(log_dir.join("app.log"))?;
 
-        // 创建一个自定义的日志目标，同时写入stdout和文件
         env_logger::Builder::from_default_env()
             .filter_level(log::LevelFilter::Info)
             .target(env_logger::Target::Pipe(Box::new(LogTarget::new(log_file))))

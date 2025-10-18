@@ -136,11 +136,11 @@ impl TrayApplication {
             "{}",
             t!("tray.loading_icon_from", path = format!("{:?}", path))
         );
-        
+
         // Try to load from embedded resource first, fallback to file system
         let (icon_rgba, icon_width, icon_height) = {
             info!("{}", t!("tray.opening_image_file"));
-            
+
             // Try embedded icon first
             let image = if path.ends_with("icon.png") {
                 // Use embedded icon data
@@ -153,7 +153,7 @@ impl TrayApplication {
                 }
                 image::open(path)?.into_rgba8()
             };
-            
+
             let (width, height) = image.dimensions();
             info!(
                 "{}",
@@ -171,23 +171,41 @@ impl TrayApplication {
         Ok(icon)
     }
 
-    // 2. 修改 new_tray_menu 函数的实现和签名
     fn new_tray_menu(&mut self) -> Result<Menu, Box<dyn std::error::Error>> {
         let menu = Menu::new();
         let config_guard = self.config.lock().unwrap();
 
-        // 3. 直接创建 MenuItems 实例，让它拥有所有菜单项对象
         let menu_items = MenuItems {
-            auto_paste: CheckMenuItem::new(&t!("menu.auto_paste"), true, config_guard.auto_paste, None),
-            auto_enter: CheckMenuItem::new(&t!("menu.auto_enter"), true, config_guard.auto_enter, None),
-            direct_input: CheckMenuItem::new(&t!("menu.direct_input"), true, config_guard.direct_input, None),
+            auto_paste: CheckMenuItem::new(
+                &t!("menu.auto_paste"),
+                true,
+                config_guard.auto_paste,
+                None,
+            ),
+            auto_enter: CheckMenuItem::new(
+                &t!("menu.auto_enter"),
+                true,
+                config_guard.auto_enter,
+                None,
+            ),
+            direct_input: CheckMenuItem::new(
+                &t!("menu.direct_input"),
+                true,
+                config_guard.direct_input,
+                None,
+            ),
             launch_at_login: CheckMenuItem::new(
                 &t!("menu.launch_at_login"),
                 true,
                 config_guard.launch_at_login,
                 None,
             ),
-            listen_email: CheckMenuItem::new(&t!("menu.listen_email"), true, config_guard.listen_email, None),
+            listen_email: CheckMenuItem::new(
+                &t!("menu.listen_email"),
+                true,
+                config_guard.listen_email,
+                None,
+            ),
             listen_message: CheckMenuItem::new(
                 &t!("menu.listen_message"),
                 true,
@@ -207,17 +225,12 @@ impl TrayApplication {
             exit: MenuItem::new(&t!("menu.exit"), true, None),
         };
 
-        // 4. 将所有权转移给 self，这样它们的生命周期就和 TrayApplication 实例绑定了
         self.menu_items = Some(menu_items);
 
-        // 5. 从 self.menu_items 中获取不可变引用来构建菜单
-        //    使用 .as_ref().unwrap() 是安全的，因为我们刚刚才存入了 Some(menu_items)
         let items_ref = self.menu_items.as_ref().unwrap();
 
-        // 应用互斥逻辑
         self.apply_menu_logic(items_ref, &config_guard);
 
-        // 使用 items_ref 中的引用来构建菜单
         menu.append(&items_ref.auto_paste)?;
         menu.append(&items_ref.auto_enter)?;
         menu.append(&items_ref.direct_input)?;
@@ -235,28 +248,23 @@ impl TrayApplication {
         menu.append(&items_ref.hide_tray)?;
         menu.append(&items_ref.exit)?;
 
-        // 6. 只返回 Menu 对象
         Ok(menu)
     }
 
     fn apply_menu_logic(&self, menu_items: &MenuItems, config: &Config) {
         if config.floating_window {
-            // 悬浮窗开启时强制启用直接输入，禁用剪贴板相关选项
             menu_items.direct_input.set_enabled(false);
             menu_items.direct_input.set_checked(true);
             menu_items.auto_paste.set_enabled(false);
             menu_items.auto_paste.set_checked(false);
         } else if config.direct_input {
-            // 直接输入开启时禁用剪贴板相关选项
             menu_items.auto_paste.set_enabled(false);
             menu_items.auto_paste.set_checked(false);
             menu_items.direct_input.set_enabled(true);
         } else {
-            // 普通模式：auto_paste 和 direct_input 选项可用
             menu_items.auto_paste.set_enabled(true);
             menu_items.direct_input.set_enabled(true);
         }
-        // auto_enter 不受其他配置影响，始终保持可用状态
     }
 }
 
@@ -305,7 +313,7 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
     fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
         match event {
             UserEvent::TrayIconEvent(_event) => {
-                // debug!("Tray event: {:?}", event); // 注释掉，太吵闹了
+                // debug!("Tray event: {:?}", event);
             }
             UserEvent::MenuEvent(event) => {
                 if let Some(menu_items) = &self.menu_items {
@@ -356,7 +364,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             }
                         );
 
-                        // Re-apply menu logic after config change
                         self.apply_menu_logic(menu_items, &config);
                     } else if event.id == menu_items.launch_at_login.id() {
                         config.launch_at_login = !config.launch_at_login;
@@ -372,7 +379,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             }
                         );
 
-                        // Sync launch at login status with system
                         if let Ok(launch_manager) = LaunchManager::new() {
                             if let Err(e) = launch_manager.sync_with_config(&config) {
                                 log::error!("Failed to sync launch at login status: {}", e);
@@ -393,7 +399,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             }
                         );
 
-                        // --- 发送命令给Actor ---
                         let sender = self.monitor_sender.clone();
                         let enabled = config.listen_email;
                         tokio::spawn(async move {
@@ -421,7 +426,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             }
                         );
 
-                        // --- 发送命令给Actor ---
                         let sender = self.monitor_sender.clone();
                         let enabled = config.listen_message;
                         tokio::spawn(async move {
@@ -437,7 +441,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                     } else if event.id == menu_items.floating_window.id() {
                         config.floating_window = !config.floating_window;
 
-                        // 悬浮窗开启时强制启用直接输入，禁用剪贴板相关选项
                         if config.floating_window {
                             config.direct_input = true;
                             config.auto_paste = false;
@@ -457,10 +460,8 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             }
                         );
 
-                        // 重新应用菜单逻辑
                         self.apply_menu_logic(menu_items, &config);
                     } else if event.id == menu_items.config.id() {
-                        // config menu item - open config file
                         let config_path = Config::get_config_path();
                         #[cfg(target_os = "macos")]
                         {
@@ -476,7 +477,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             log::warn!("Config file opening is only supported on macOS");
                         }
                     } else if event.id == menu_items.log.id() {
-                        // log menu item - open log file
                         #[cfg(target_os = "macos")]
                         {
                             use std::process::Command;
@@ -494,7 +494,6 @@ impl ApplicationHandler<UserEvent> for TrayApplication {
                             log::warn!("Log file opening is only supported on macOS");
                         }
                     } else if event.id == menu_items.check_update.id() {
-                        // check update menu item - trigger update check
                         info!("用户触发检查更新");
                         updater::check_for_updates();
                     } else if event.id == menu_items.hide_tray.id() {

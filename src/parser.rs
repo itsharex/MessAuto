@@ -26,13 +26,10 @@ pub fn extract_verification_code(content: &str) -> Option<String> {
 }
 
 fn find_first_keyword_position(text: &str, keywords: &[String]) -> Option<(usize, usize)> {
-    // 找到第一个关键词的位置，返回(开始位置，结束位置)
     let text_lower = text.to_lowercase();
     for keyword in keywords {
         let keyword_lower = keyword.to_lowercase();
         if let Some(pos) = text_lower.find(&keyword_lower) {
-            // 示例：[验证][码]534571
-            //      start=0, end=2
             return Some((pos, pos + keyword.len()));
         }
     }
@@ -40,14 +37,12 @@ fn find_first_keyword_position(text: &str, keywords: &[String]) -> Option<(usize
 }
 
 fn extract_candidate_codes(text: &str, pattern: &str) -> Vec<(String, usize)> {
-    // 使用正则提取候选验证码及其位置
     let re = Regex::new(pattern).unwrap();
     let mut candidates = Vec::new();
 
     for result in re.find_iter(text) {
         if let Ok(mat) = result {
             let code = mat.as_str();
-            // 确保提取的字符串中至少包含一个数字
             if code.chars().any(|c| c.is_ascii_digit()) {
                 let pos = mat.start();
                 candidates.push((code.to_string(), pos));
@@ -59,11 +54,9 @@ fn extract_candidate_codes(text: &str, pattern: &str) -> Vec<(String, usize)> {
 }
 
 fn filter_candidates_step1(candidates: Vec<(String, usize)>, _text: &str) -> Vec<(String, usize)> {
-    // 过滤1: 去除包含多个'-'或在首尾的候选码
     let mut filtered = Vec::new();
 
     for (code, pos) in candidates {
-        // 检查'-'的数量
         if code.matches('-').count() > 1 {
             continue;
         }
@@ -74,8 +67,10 @@ fn filter_candidates_step1(candidates: Vec<(String, usize)>, _text: &str) -> Vec
     filtered
 }
 
-fn find_closest_candidate(candidates: Vec<(String, usize)>, keyword_bounds: (usize, usize)) -> Option<String> {
-    // 使用边界距离计算找到最近的候选码
+fn find_closest_candidate(
+    candidates: Vec<(String, usize)>,
+    keyword_bounds: (usize, usize),
+) -> Option<String> {
     let (keyword_start, keyword_end) = keyword_bounds;
     let mut closest_code: Option<String> = None;
     let mut min_distance = usize::MAX;
@@ -84,15 +79,11 @@ fn find_closest_candidate(candidates: Vec<(String, usize)>, keyword_bounds: (usi
         let code_start = code_pos;
         let code_end = code_pos + code.len();
 
-        // 根据相对位置计算边界距离
         let distance = if code_start >= keyword_end {
-            // 验证码在关键词右侧：code_start - keyword_end
             code_start - keyword_end
         } else if code_end <= keyword_start {
-            // 验证码在关键词左侧：keyword_start - code_end
             keyword_start - code_end
         } else {
-            // 验证码与关键词有重叠，设为0
             0
         };
 
@@ -235,7 +226,6 @@ mod tests {
             }
         }
 
-        // 输出测试结果统计
         println!("=== 验证码提取正确率测试结果 ===");
         println!("总测试数: {}", total_tests);
         println!("通过测试数: {}", passed_tests);
@@ -255,7 +245,6 @@ mod tests {
             }
         }
 
-        // 验证正确率应该达到 100%
         assert_eq!(passed_tests, total_tests, "验证码提取正确率未达到100%");
     }
 }

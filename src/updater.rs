@@ -256,7 +256,6 @@ fn download_update(update: Update) -> Result<(Update, Vec<u8>), Box<dyn std::err
 fn install_update(update: Update, update_bytes: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
     info!("{}", t!("updater.installing_update"));
 
-    // 安装更新
     update.install(update_bytes)?;
     info!("{}", t!("updater.update_installed"));
 
@@ -269,7 +268,6 @@ fn show_restart_notification(version: &str) -> bool {
         t!("updater.new_version_downloaded", version = version)
     );
 
-    // 使用系统通知询问用户是否要安装更新
     let title = t!("updater.update_available");
     let content = format!(
         "{}\n\n{}",

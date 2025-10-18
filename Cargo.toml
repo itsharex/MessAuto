@@ -2,6 +2,7 @@
 name = "messauto"
 version = "1.2.1"
 edition = "2024"
+publish = false
 
 [dependencies]
 ctrlc = "3.4.5"
